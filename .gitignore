@@ -1,0 +1,13 @@
+# Python environment
+__pycache__/
+*.py[cod]
+venv/
+.env
+
+# Data and Notebooks
+data/
+.ipynb_checkpoints/
+
+# IDE files
+.vscode/
+.idea/
