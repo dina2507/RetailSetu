@@ -13,3 +13,5 @@ data/
 .idea/
 #simran is bad girl
 .blabla
+data/gold_parquet/
+data/*.csv
