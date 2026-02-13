@@ -2,22 +2,46 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import time
+from datetime import datetime
+import os
 
-# --- PAGE CONFIGURATION (Must be first) ---
+# --- PAGE CONFIGURATION ---
 st.set_page_config(
     page_title="Retail Setu Command Center",
     page_icon="🌉",
-    layout="wide", # Uses full screen width
-    initial_sidebar_state="collapsed" # Hides sidebar by default
+    layout="wide",
+    initial_sidebar_state="collapsed" # Sidebar is gone!
 )
 
-# --- CUSTOM CSS (To make it look like a pro app) ---
+# --- CUSTOM CSS (THE FUTURISTIC LOOK) ---
 st.markdown("""
     <style>
-        .block-container {padding-top: 1rem; padding-bottom: 0rem;}
-        h1 {margin-top: -50px;}
-        [data-testid="stMetricValue"] {font-size: 24px;}
-        div.stButton > button:first-child {background-color: #00CC96; color: white;}
+        /* Remove top padding to make header look like a nav bar */
+        .block-container {
+            padding-top: 1rem; 
+            padding-bottom: 0rem;
+        }
+        /* Style metrics */
+        [data-testid="stMetricValue"] {
+            font-size: 26px;
+            font-weight: bold;
+            color: #00CC96;
+        }
+        /* Floating Control Deck Styling */
+        div.css-1r6slb0.e1tzin5v2 {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0px 4px 6px rgba(0,0,0,0.1);
+        }
+        /* Button Styling */
+        div.stButton > button:first-child {
+            background-color: #00CC96; 
+            color: white;
+            border-radius: 20px;
+            border: none;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -29,98 +53,103 @@ if "auto_refresh" not in st.session_state:
 DATA_DIR = "data"
 
 def load_data():
-    """Loads the Gold Layer data."""
     try:
-        # We stick to the standard 'gold_daily_sales.csv' to ensure stability
-        # If you have the forecast file later, you can swap this back.
-        daily_sales = pd.read_csv(f"{DATA_DIR}/gold_daily_sales.csv")
+        # 1. Gold Data
+        if os.path.exists(f"{DATA_DIR}/gold_sales_forecast.csv"):
+            daily_sales = pd.read_csv(f"{DATA_DIR}/gold_sales_forecast.csv")
+        else:
+            daily_sales = pd.read_csv(f"{DATA_DIR}/gold_daily_sales.csv")
+            if 'Type' not in daily_sales.columns: daily_sales['Type'] = 'Historical'
+
         top_products = pd.read_csv(f"{DATA_DIR}/gold_top_products.csv")
         inventory = pd.read_csv(f"{DATA_DIR}/gold_inventory_health.csv")
-        return daily_sales, top_products, inventory
+        
+        # 2. Raw Transactions (Last 8 rows)
+        recent_txns = pd.read_csv(f"{DATA_DIR}/silver_pos_transactions.csv").tail(8).sort_values(by='timestamp', ascending=False)
+        
+        return daily_sales, top_products, inventory, recent_txns
     except FileNotFoundError:
-        return None, None, None
+        return None, None, None, None
 
-df_sales, df_top_products, df_inventory = load_data()
+df_sales, df_top_products, df_inventory, df_recent = load_data()
 
-# --- TOP BAR (Title + Controls) ---
-col_title, col_controls = st.columns([6, 1])
+# --- 🛰️ FLOATING HEADER LAYOUT ---
+# We use columns to create a "Navbar" feel
+c_title, c_spacer, c_controls = st.columns([3, 1, 1.5])
 
-with col_title:
-    st.title("🌉 Retail Setu: Supply Chain AI")
+with c_title:
+    st.title("🌉 Retail Setu AI")
+    st.caption(f"🚀 Supply Chain Command Center | System Time: {datetime.now().strftime('%H:%M:%S')}")
 
-with col_controls:
-    # Toggle button at the top right
-    st.session_state.auto_refresh = st.toggle("🔄 Live Mode", value=st.session_state.auto_refresh)
+with c_controls:
+    # This is the "Floating Window" effect - a styled container at the top right
+    with st.container(border=True):
+        c_toggle, c_status = st.columns([1.5, 1])
+        with c_toggle:
+            st.write("**Live Data Feed**")
+            st.session_state.auto_refresh = st.toggle("Connect", value=st.session_state.auto_refresh)
+        with c_status:
+            if st.session_state.auto_refresh:
+                st.success("ONLINE")
+            else:
+                st.warning("PAUSED")
 
-if st.session_state.auto_refresh:
-    st.toast("🔴 Live Data Streaming...", icon="📡")
+st.markdown("---")
 
-st.divider()
-
+# --- MAIN DASHBOARD ---
 if df_sales is not None:
-    # --- 1. KEY METRICS ROW ---
-    total_rev = df_sales['Total_Revenue'].sum()
-    avg_daily = df_sales['Total_Revenue'].mean()
+    # --- 1. METRICS ROW ---
+    df_history = df_sales[df_sales.get('Type', 'Historical') == 'Historical']
+    total_rev = df_history['Total_Revenue'].sum()
+    avg_daily = df_history['Total_Revenue'].mean()
     critical_items = len(df_inventory[df_inventory['status'] == 'CRITICAL'])
 
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("💰 Total Revenue", f"₹{total_rev:,.0f}", delta="Live Updates")
+    m1.metric("💰 Total Revenue", f"₹{total_rev:,.0f}", delta="▲ Live Updates")
     m2.metric("📦 Avg. Daily Sales", f"₹{avg_daily:,.0f}")
     m3.metric("🚨 Critical Stock", f"{critical_items} SKUs", delta="-URGENT", delta_color="inverse")
-    m4.metric("🤖 AI Model Status", "Active", delta="v2.1")
+    m4.metric("🤖 AI Model", "Active", delta="v2.1")
 
-    # --- 2. AI INSIGHTS (The "Chat" Interface) ---
-    with st.expander("🧠 View AI Executive Summary", expanded=True):
-        if critical_items > 5:
-            st.error(f"**CRITICAL ALERT:** {critical_items} products are below safety stock levels. Predicted revenue loss of ₹45,000 if not restocked by tomorrow.", icon="🤖")
-        elif critical_items > 0:
-            st.warning(f"**WARNING:** {critical_items} products are running low. Supply chain velocity is stable otherwise.", icon="🤖")
-        else:
-            st.success("**OPTIMAL:** Supply chain is operating at 98% efficiency. No bottlenecks detected.", icon="🤖")
+    # --- 2. LIVE FEED (Visual Proof) ---
+    with st.expander("⚡ View Live Transaction Stream (Real-Time)", expanded=False):
+        st.dataframe(
+            df_recent[['transaction_id', 'timestamp', 'product_id', 'total_amount', 'payment_mode']],
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "total_amount": st.column_config.NumberColumn("Amount", format="₹%.2f"),
+                "timestamp": st.column_config.DatetimeColumn("Time", format="h:mm:ss a")
+            }
+        )
 
-    # --- 3. CHARTS ROW (Full Width) ---
-    # We use a 2:1 ratio so the Line Chart gets more space
+    # --- 3. CHARTS ROW ---
     c1, c2 = st.columns([2, 1]) 
-
     with c1:
-        st.subheader("📈 Revenue Trends")
-        # Enhance chart with area fill
-        fig_sales = px.area(df_sales, x='Date', y='Total_Revenue', title="", color_discrete_sequence=["#00CC96"])
-        fig_sales.update_layout(xaxis_title=None, yaxis_title=None, margin=dict(l=0, r=0, t=0, b=0))
+        st.subheader("📈 Revenue Trends & AI Forecast")
+        if 'Type' in df_sales.columns and df_sales['Type'].nunique() > 1:
+            color_map = {'Historical': '#1f77b4', 'Forecast': '#ff7f0e'} 
+            fig_sales = px.line(df_sales, x='Date', y='Total_Revenue', color='Type', color_discrete_map=color_map, markers=True)
+            fig_sales.update_layout(legend=dict(orientation="h", y=1.1, x=0))
+        else:
+            fig_sales = px.area(df_sales, x='Date', y='Total_Revenue', color_discrete_sequence=["#00CC96"])
         st.plotly_chart(fig_sales, use_container_width=True)
 
     with c2:
-        st.subheader("🏆 Top Selling Products")
-        fig_prod = px.bar(df_top_products, x='quantity', y='product_name', orientation='h', color='quantity', color_continuous_scale='Bluered')
-        fig_prod.update_layout(xaxis_title=None, yaxis_title=None, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
-        st.plotly_chart(fig_prod, use_container_width=True)
-
-    # --- 4. DATA GRID ---
-    st.subheader("📦 Real-Time Inventory Feed")
-    
-    # We use column_config to make the table look like a dashboard component
-    st.dataframe(
-        df_inventory, 
-        use_container_width=True,
-        column_config={
-            "status": st.column_config.TextColumn(
-                "Risk Status",
-                help="AI Predicted Risk",
-                validate="^(CRITICAL|Healthy)$"
-            ),
-            "stock_level": st.column_config.ProgressColumn(
-                "Stock Level",
-                format="%d",
-                min_value=0,
-                max_value=200,
-            ),
-        }
-    )
+        st.subheader("📦 Inventory Risks")
+        st.dataframe(
+            df_inventory[['product_name', 'stock_level', 'status']], 
+            use_container_width=True, 
+            height=300,
+            column_config={
+                 "status": st.column_config.TextColumn("Risk", help="AI Risk Level"),
+                 "stock_level": st.column_config.ProgressColumn("Stock", format="%d", min_value=0, max_value=200)
+            }
+        )
 
 else:
-    st.error("❌ Waiting for pipeline... Run 'src/orchestration/pipeline_runner.py'")
+    st.info("🚀 System initializing... Please wait for the pipeline to generate data.")
 
-# --- AUTO REFRESH LOOP ---
+# --- AUTO-REFRESH LOGIC ---
 if st.session_state.auto_refresh:
-    time.sleep(2)
+    time.sleep(3)
     st.rerun()
