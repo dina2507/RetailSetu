@@ -11,7 +11,7 @@ data/
 # IDE files
 .vscode/
 .idea/
-#simran is bad girl
-.blabla
+
 data/gold_parquet/
 data/*.csv
+logs/
