@@ -11,7 +11,7 @@ SILVER_POS_PATH = f"{DATA_DIR}/silver_pos_transactions.csv"
 SILVER_INV_PATH = f"{DATA_DIR}/silver_warehouse.csv"
 
 def run_silver_transformation():
-    print("🚀 STARTING: Bronze -> Silver Transformation Pipeline...")
+    print("STARTING: Bronze -> Silver Transformation Pipeline...")
 
     # --- 1. Process POS Transactions ---
     if os.path.exists(RAW_POS_PATH):

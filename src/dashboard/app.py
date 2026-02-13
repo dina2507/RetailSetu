@@ -2,14 +2,28 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import os
+import time
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="Retail Setu Intelligence", page_icon="📊", layout="wide")
 
+# --- INITIALIZE SESSION STATE ---
+if "auto_refresh" not in st.session_state:
+    st.session_state.auto_refresh = False
+
+# --- SIDEBAR AUTO-REFRESH TOGGLE ---
+with st.sidebar:
+    st.markdown("### ⚙️ Settings")
+    st.session_state.auto_refresh = st.toggle("🔄 Auto-Refresh (Every 2s)", value=st.session_state.auto_refresh)
+    
+    if st.session_state.auto_refresh:
+        st.info("🟢 Auto-Refresh is ON")
+    else:
+        st.info("🔴 Auto-Refresh is OFF")
+
 # --- LOAD DATA ---
 DATA_DIR = "data"
 
-@st.cache_data
 def load_data():
     """Loads the Gold Layer data for the dashboard."""
     try:
@@ -70,3 +84,8 @@ if df_sales is not None:
 
 else:
     st.warning("Waiting for data pipelines to run...")
+
+# --- AUTO-REFRESH LOGIC (AT END) ---
+if st.session_state.auto_refresh:
+    time.sleep(2)
+    st.rerun()

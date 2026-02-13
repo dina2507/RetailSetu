@@ -13,11 +13,11 @@ GOLD_TOP_PRODUCTS = f"{DATA_DIR}/gold_top_products.csv"
 GOLD_INV_HEALTH = f"{DATA_DIR}/gold_inventory_health.csv"
 
 def generate_gold_layer():
-    print("🌟 STARTING: Silver -> Gold Transformation (KPI Calculation)...")
+    print("STARTING: Silver -> Gold Transformation (KPI Calculation)...")
     
     # Check if files exist
     if not os.path.exists(SILVER_POS_PATH):
-        print("❌ ERROR: Silver data not found. Run 'process_silver_layer.py' first.")
+        print("ERROR: Silver data not found. Run 'process_silver_layer.py' first.")
         return
 
     # Load Data
