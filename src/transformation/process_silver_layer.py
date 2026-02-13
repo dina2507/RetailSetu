@@ -1,45 +1,48 @@
 import pandas as pd
 import os
+import time
 from cleaning_rules import clean_pos_data, clean_inventory_data
 
-# Define Paths
+# Configuration
 DATA_DIR = "data"
-RAW_POS_PATH = f"{DATA_DIR}/silo_pos_transactions.csv"
-RAW_INV_PATH = f"{DATA_DIR}/silo_warehouse.csv"
+SILVER_POS_FILE = f"{DATA_DIR}/silver_pos_transactions.csv"
+SILVER_INV_FILE = f"{DATA_DIR}/silver_inventory.csv"
 
-SILVER_POS_PATH = f"{DATA_DIR}/silver_pos_transactions.csv"
-SILVER_INV_PATH = f"{DATA_DIR}/silver_warehouse.csv"
+def read_csv_with_retry(filepath, retries=5, delay=1):
+    """
+    Reads a CSV with automatic retries (Resilience Requirement).
+    Fixes 'PermissionError' if the file is being written to at the same time.
+    """
+    for attempt in range(retries):
+        try:
+            return pd.read_csv(filepath)
+        except (PermissionError, FileNotFoundError, pd.errors.EmptyDataError):
+            if attempt < retries - 1:
+                time.sleep(delay)  # Wait and try again
+    return pd.DataFrame() # Return empty if failed after all retries
 
 def run_silver_transformation():
     print("STARTING: Bronze -> Silver Transformation Pipeline...")
 
-    # --- 1. Process POS Transactions ---
-    if os.path.exists(RAW_POS_PATH):
-        print(f"Reading Raw Data: {RAW_POS_PATH}")
-        df_pos = pd.read_csv(RAW_POS_PATH)
-        
-        # Apply the logic you wrote
+    # --- 1. Process POS Data (With Retries) ---
+    df_pos = read_csv_with_retry(f"{DATA_DIR}/silo_pos_transactions.csv")
+    
+    if not df_pos.empty:
         df_clean_pos = clean_pos_data(df_pos)
-        
-        # Save to Silver Layer
-        df_clean_pos.to_csv(SILVER_POS_PATH, index=False)
-        print(f"💾 Saved Silver Data: {SILVER_POS_PATH}")
+        df_clean_pos.to_csv(SILVER_POS_FILE, index=False)
+        print(f"💾 Saved Silver Data: {SILVER_POS_FILE}")
     else:
-        print(f"⚠️ ERROR: Could not find {RAW_POS_PATH}. Did Member 1 run the generator?")
+        print("⚠️ Skipping POS processing (File empty or locked).")
 
-    # --- 2. Process Inventory ---
-    if os.path.exists(RAW_INV_PATH):
-        print(f"Reading Raw Data: {RAW_INV_PATH}")
-        df_inv = pd.read_csv(RAW_INV_PATH)
-        
-        # Apply the logic
+    # --- 2. Process Inventory Data (With Retries) ---
+    df_inv = read_csv_with_retry(f"{DATA_DIR}/silo_warehouse.csv")
+    
+    if not df_inv.empty:
         df_clean_inv = clean_inventory_data(df_inv)
-        
-        # Save to Silver Layer
-        df_clean_inv.to_csv(SILVER_INV_PATH, index=False)
-        print(f"💾 Saved Silver Data: {SILVER_INV_PATH}")
-
-    print("🎉 SUCCESS: Silver Layer Created.")
+        df_clean_inv.to_csv(SILVER_INV_FILE, index=False)
+        print(f"💾 Saved Silver Data: {SILVER_INV_FILE}")
+    else:
+        print("⚠️ Skipping Inventory processing.")
 
 if __name__ == "__main__":
     run_silver_transformation()
